@@ -1,0 +1,10 @@
+﻿__pycache__/
+*.py[cod]
+.streamlit/
+temp_audio/
+*.mp3
+*.wav
+*.mp4
+*.mkv
+*.mov
+.env

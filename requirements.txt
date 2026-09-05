@@ -1,0 +1,4 @@
+﻿streamlit>=1.35.0
+pydub>=0.25.1
+static-ffmpeg>=2.5
+requests>=2.31.0
