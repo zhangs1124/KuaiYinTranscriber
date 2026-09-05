@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import shutil
+import json
 import streamlit as st
 
 # 引用核心模組
@@ -46,18 +47,40 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 讀取系統環境變數的 GROQ_API_KEY 作為預設
+# 讀取系統環境變數的 GROQ_API_KEY 作為 fallback
 default_key = os.environ.get("GROQ_API_KEY", "")
 
 # 側邊欄：設定配置
 with st.sidebar:
     st.header("⚙️ 轉錄服務配置")
+    
+    # 支援透過 URL 參數初始化 (由 localStorage 回填時使用)
+    query_params = st.query_params
+    initial_key = query_params.get("key", default_key)
+
     api_key_input = st.text_area(
         "Groq API Key (支援多組以逗號分隔)",
-        value=default_key,
-        help="支援逗號、分號或換行分隔多組金鑰（如 gsk_1, gsk_2）。若第一組限速會自動無縫切換下一組！",
+        value=initial_key,
+        help="支援逗號、分號或換行分隔多組金鑰（如 gsk_1, gsk_2）。轉錄成功後會自動保存在瀏覽器 LocalStorage！",
         height=100
     )
+    
+    # 注入前端 JavaScript: 自動從瀏覽器 localStorage 讀取先前儲存的金鑰
+    st.components.v1.html("""
+    <script>
+        (function() {
+            const savedKey = localStorage.getItem("KUAIYIN_GROQ_KEYS");
+            if (savedKey) {
+                const urlParams = new URLSearchParams(window.parent.location.search);
+                if (!urlParams.get("key")) {
+                    urlParams.set("key", savedKey);
+                    window.parent.location.search = urlParams.toString();
+                }
+            }
+        })();
+    </script>
+    """, height=0)
+
     
     st.markdown("---")
     st.subheader("🛠️ 轉檔與切片參數")
@@ -153,6 +176,20 @@ if uploaded_file:
 
             status_box.update(label="🎉 恭喜！逐字稿全部轉錄完成！", state="complete", expanded=False)
             progress_bar.empty()
+
+            # 轉錄成功！自動將此組有效金鑰儲存至使用者的瀏覽器 LocalStorage
+            safe_key_json = json.dumps(api_key_input.strip())
+            st.components.v1.html(f"""
+            <script>
+                (function() {
+                    const keyVal = {safe_key_json};
+                    localStorage.setItem("KUAIYIN_GROQ_KEYS", keyVal);
+                    const url = new URL(window.parent.location.href);
+                    url.searchParams.set("key", keyVal);
+                    window.parent.history.replaceState(null, "", url.toString());
+                })();
+            </script>
+            """, height=0)
 
             # 統計卡片
             char_count = len(full_text.replace(" ", "").replace("\n", ""))
