@@ -58,11 +58,11 @@ with st.sidebar:
     query_params = st.query_params
     initial_key = query_params.get("key", default_key)
 
-    api_key_input = st.text_area(
+    api_key_input = st.text_input(
         "Groq API Key (支援多組以逗號分隔)",
         value=initial_key,
-        help="支援逗號、分號或換行分隔多組金鑰（如 gsk_1, gsk_2）。轉錄成功後會自動保存在瀏覽器 LocalStorage！",
-        height=100
+        type="password",
+        help="支援逗號或分號分隔多組金鑰（如 gsk_1, gsk_2）。已採用密碼隱藏顯示（••••••），轉錄成功後會自動保存在瀏覽器 LocalStorage！"
     )
     
     # 注入前端 JavaScript: 自動從瀏覽器 localStorage 讀取先前儲存的金鑰
