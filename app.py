@@ -179,17 +179,18 @@ if uploaded_file:
 
             # 轉錄成功！自動將此組有效金鑰儲存至使用者的瀏覽器 LocalStorage
             safe_key_json = json.dumps(api_key_input.strip())
-            st.components.v1.html(f"""
+            save_script = f"""
             <script>
-                (function() {
+                (function() {{
                     const keyVal = {safe_key_json};
                     localStorage.setItem("KUAIYIN_GROQ_KEYS", keyVal);
                     const url = new URL(window.parent.location.href);
                     url.searchParams.set("key", keyVal);
                     window.parent.history.replaceState(null, "", url.toString());
-                })();
+                }})();
             </script>
-            """, height=0)
+            """
+            st.components.v1.html(save_script, height=0)
 
             # 統計卡片
             char_count = len(full_text.replace(" ", "").replace("\n", ""))
