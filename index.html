@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -57,6 +57,20 @@
         .header p {
             color: var(--text-muted);
             font-size: 1rem;
+        }
+
+        .version-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin-top: 8px;
         }
 
         .card {
@@ -283,7 +297,8 @@
 <div class="container">
     <div class="header">
         <h1>🎙️ 快音逐字稿 (純靜態 Web 版)</h1>
-        <p>100% 純前端無伺服器架構 • 內建前端智慧切片 • 支援部署 GitHub Pages</p>
+        <p>100% 純前端無伺服器架構 • 快速直出字幕 • 支援部署 GitHub Pages</p>
+        <div class="version-badge">🏷️ v1.2.0 (Updated: 2026-09-05)</div>
     </div>
 
     <!-- 設定卡片 -->
@@ -301,7 +316,12 @@
         <div class="dropzone" id="dropzone">
             <div class="dropzone-icon">📁</div>
             <div class="dropzone-title">拖曳音訊/影片檔案至此處，或點擊瀏覽選取</div>
-            <div class="help-text">支援 MP3, WAV, M4A, OGG 等 (超過 24MB 瀏覽器將自動智慧切片並行轉錄)</div>
+            <div class="help-text" style="color: #38bdf8; font-weight: 600;">
+                ⚠️ 檔案大小限制：單檔容量必須在 25MB 以下（Groq 官方 API 物理上限）
+            </div>
+            <div class="help-text" style="margin-top: 4px;">
+                支援格式：MP3, WAV, M4A, OGG, FLAC 等。若影片/錄音檔大於 25MB，請先轉存為 MP3（通常小於 10MB）再上傳！
+            </div>
             <input type="file" id="fileInput" accept="audio/*,video/*" style="display: none;">
         </div>
 
@@ -402,8 +422,13 @@
 
     function handleFileSelect(file) {
         const sizeMb = file.size / (1024 * 1024);
-        if (sizeMb > 120) {
-            alert("⚠️ 檔案大小為 " + sizeMb.toFixed(1) + " MB！為避免純瀏覽器記憶體崩潰，建議大於 100MB 之大檔案請先轉為 MP3 音訊再上傳。");
+        if (sizeMb > 25) {
+            alert(`⚠️ 檔案大小為 ${sizeMb.toFixed(1)} MB，已超過 25MB！\n\n【重要說明】：\nGroq 官方 API 規定單次請求嚴格不可超過 25MB。\n\n【建議解決方式】：\n請先將此檔案（尤其是影片 MP4）轉為「純 MP3/M4A 音訊檔」（通常 1 小時音訊僅約 15~20MB），再上傳即可順利轉錄！`);
+            currentFile = null;
+            fileInput.value = "";
+            fileInfo.style.display = "none";
+            startBtn.disabled = true;
+            return;
         }
 
         currentFile = file;
