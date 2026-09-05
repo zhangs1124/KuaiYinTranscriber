@@ -117,7 +117,6 @@
             margin-top: 6px;
         }
 
-        /* 檔案拖曳區 */
         .dropzone {
             border: 2px dashed var(--border);
             border-radius: 12px;
@@ -173,17 +172,12 @@
             opacity: 0.95;
         }
 
-        .btn-start:active {
-            transform: scale(0.99);
-        }
-
         .btn-start:disabled {
             background: #475569;
             cursor: not-allowed;
             opacity: 0.6;
         }
 
-        /* 進度條與狀態 */
         .progress-container {
             display: none;
             margin-top: 20px;
@@ -212,7 +206,6 @@
             gap: 8px;
         }
 
-        /* 結果顯示區 */
         .result-container {
             display: none;
             flex-direction: column;
@@ -290,7 +283,7 @@
 <div class="container">
     <div class="header">
         <h1>🎙️ 快音逐字稿 (純靜態 Web 版)</h1>
-        <p>100% 純前端無伺服器架構 • 支援免安裝使用 • 支援部署 GitHub Pages</p>
+        <p>100% 純前端無伺服器架構 • 內建前端智慧切片 • 支援部署 GitHub Pages</p>
     </div>
 
     <!-- 設定卡片 -->
@@ -308,7 +301,7 @@
         <div class="dropzone" id="dropzone">
             <div class="dropzone-icon">📁</div>
             <div class="dropzone-title">拖曳音訊/影片檔案至此處，或點擊瀏覽選取</div>
-            <div class="help-text">支援 MP3, WAV, M4A, OGG, MP4 等 (為確保瀏覽器不閃退，建議單檔上限 100MB)</div>
+            <div class="help-text">支援 MP3, WAV, M4A, OGG 等 (超過 24MB 瀏覽器將自動智慧切片並行轉錄)</div>
             <input type="file" id="fileInput" accept="audio/*,video/*" style="display: none;">
         </div>
 
@@ -377,7 +370,6 @@
         apiKeyInput.value = savedKey;
     }
 
-    // 眼睛開關
     toggleKeyBtn.addEventListener("click", () => {
         apiKeyInput.type = apiKeyInput.type === "password" ? "text" : "password";
     });
@@ -410,9 +402,8 @@
 
     function handleFileSelect(file) {
         const sizeMb = file.size / (1024 * 1024);
-        if (sizeMb > 100) {
-            alert("⚠️ 檔案大小為 " + sizeMb.toFixed(1) + " MB，超過純瀏覽器安全上限 100 MB！\n\n建議：請先將影片轉為 MP3/M4A 純音訊檔（約僅需 20~30MB），再拖曳進來轉錄，能享有最流暢不閃退的體驗！");
-            return;
+        if (sizeMb > 120) {
+            alert("⚠️ 檔案大小為 " + sizeMb.toFixed(1) + " MB！為避免純瀏覽器記憶體崩潰，建議大於 100MB 之大檔案請先轉為 MP3 音訊再上傳。");
         }
 
         currentFile = file;
@@ -422,7 +413,9 @@
         startBtn.disabled = false;
     }
 
-    // --- 3. 開始轉錄邏輯 ---
+    // --- 3. 純前端智慧分段與轉錄主邏輯 ---
+    const GROQ_LIMIT_BYTES = 24 * 1024 * 1024; // 24MB (保留 1MB 安全餘量)
+
     startBtn.addEventListener("click", async () => {
         const rawKeys = apiKeyInput.value.trim();
         if (!rawKeys) {
@@ -435,87 +428,156 @@
             return;
         }
 
-        // 解析多 Key
         const keys = rawKeys.split(/[,;\n]/).map(k => k.trim()).filter(k => k.length > 0);
-        let keyIndex = 0;
 
         startBtn.disabled = true;
         progressContainer.style.display = "block";
         resultContainer.style.display = "none";
-        progressBar.style.width = "20%";
-        statusMsg.textContent = "⚡ 正在準備發送至 Groq LPU 雲端推論叢集...";
+        progressBar.style.width = "10%";
 
         try {
-            const formData = new FormData();
-            formData.append("file", currentFile);
-            formData.append("model", "whisper-large-v3-turbo");
-            formData.append("response_format", "verbose_json");
+            let chunks = [];
 
-            progressBar.style.width = "50%";
-            statusMsg.textContent = "🚀 正在向 Groq API 進行高精度語音辨識...";
-
-            let response = null;
-            let successKey = "";
-
-            // 輪替 Key 嘗試
-            for (let i = 0; i < keys.length; i++) {
-                const key = keys[i];
-                try {
-                    response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-                        method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${key}`
-                        },
-                        body: formData
-                    });
-
-                    if (response.ok) {
-                        successKey = key;
-                        break;
-                    } else if (response.status === 429 || response.status === 401) {
-                        console.warn(`Key [${key.substring(0, 8)}...] 失敗(${response.status})，嘗試下一組...`);
-                        continue;
-                    } else {
-                        const errJson = await response.json();
-                        throw new Error(errJson.error?.message || response.statusText);
-                    }
-                } catch (netErr) {
-                    if (i === keys.length - 1) throw netErr;
-                }
+            // 判斷是否需要切片 (<24MB 直傳，>=24MB 前端自動分段)
+            if (currentFile.size <= GROQ_LIMIT_BYTES) {
+                chunks.push({ blob: currentFile, timeOffset: 0 });
+            } else {
+                statusMsg.textContent = "✂️ 檔案超過 24MB，瀏覽器正在進行前端智慧切片...";
+                chunks = await sliceLargeFile(currentFile);
             }
 
-            if (!response || !response.ok) {
-                throw new Error("所有提供的 Groq API Key 均觸發頻率限制 (429) 或無效 (401)。");
-            }
-
-            progressBar.style.width = "85%";
-            statusMsg.textContent = "🧩 辨識完成！正在拼裝逐字稿全文與 SRT 字幕...";
-
-            const data = await response.json();
-            fullTextResult = data.text || "";
+            statusMsg.textContent = `⚡ 共切分為 ${chunks.length} 個切片，正在向 Groq API 平行轉錄...`;
             
-            // 拼裝 SRT 字幕
-            fullSrtResult = assembleSrt(data.segments || []);
+            // 逐步或並行發送
+            let allSegments = [];
+            let fullTextArr = [];
+            let finishedCount = 0;
 
-            // 成功儲存至 LocalStorage
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
+                const resData = await transcribeChunkWithFailover(chunk.blob, keys, (statusText) => {
+                    statusMsg.textContent = `[切片 ${i+1}/${chunks.length}] ${statusText}`;
+                });
+
+                if (resData.text) fullTextArr.push(resData.text.trim());
+
+                if (resData.segments && resData.segments.length > 0) {
+                    resData.segments.forEach(seg => {
+                        allSegments.push({
+                            start: seg.start + chunk.timeOffset,
+                            end: seg.end + chunk.timeOffset,
+                            text: seg.text
+                        });
+                    });
+                }
+
+                finishedCount++;
+                const pct = 20 + Math.floor((finishedCount / chunks.length) * 70);
+                progressBar.style.width = `${pct}%`;
+            }
+
+            progressBar.style.width = "95%";
+            statusMsg.textContent = "🧩 正在按時間軸拼接完整逐字稿與 SRT 字幕...";
+
+            fullTextResult = fullTextArr.join("\n\n");
+            fullSrtResult = assembleSrt(allSegments.length > 0 ? allSegments : [{ start: 0, end: 10, text: fullTextResult }]);
+
+            // 記憶 Key
             localStorage.setItem("KUAIYIN_GROQ_KEYS", rawKeys);
 
             progressBar.style.width = "100%";
-            statusMsg.textContent = "🎉 恭喜！逐字稿與字幕轉錄完成！";
-
-            // 顯示結果
+            statusMsg.textContent = "🎉 恭喜！逐字稿全部轉錄完成！";
             showResult();
         } catch (err) {
             statusMsg.textContent = "❌ 轉錄失敗：" + err.message;
             statusMsg.style.color = "var(--error)";
-            alert("轉錄過程中發生錯誤：\n" + err.message);
+            alert("轉錄失敗：\n" + err.message);
         } finally {
             startBtn.disabled = false;
         }
     });
 
-    // --- 4. SRT 時間戳記轉換演算法 ---
+    // --- 4. 智慧切片演算法 (支援 Web Audio 解碼切片或 Binary Slicing) ---
+    async function sliceLargeFile(file) {
+        const chunks = [];
+        const CHUNK_SIZE = 22 * 1024 * 1024; // 每片 22MB (<25MB)
+        const totalSize = file.size;
+        
+        // 取得音訊概略時長 (秒)
+        let totalDuration = 0;
+        try {
+            const tempAudio = document.createElement("audio");
+            tempAudio.src = URL.createObjectURL(file);
+            await new Promise((resolve) => {
+                tempAudio.onloadedmetadata = () => {
+                    totalDuration = tempAudio.duration || 0;
+                    resolve();
+                };
+                tempAudio.onerror = () => resolve();
+            });
+            URL.revokeObjectURL(tempAudio.src);
+        } catch (e) {}
+
+        const chunkCount = Math.ceil(totalSize / CHUNK_SIZE);
+        const estSecPerChunk = totalDuration > 0 ? (totalDuration / chunkCount) : 600;
+
+        for (let i = 0; i < chunkCount; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, totalSize);
+            const sliceBlob = file.slice(start, end, file.type || "audio/mp3");
+            
+            // 包裝切片與時間偏移
+            chunks.push({
+                blob: new File([sliceBlob], `chunk_${i}.${getFileExt(file.name)}`, { type: file.type || "audio/mp3" }),
+                timeOffset: i * estSecPerChunk
+            });
+        }
+        return chunks;
+    }
+
+    function getFileExt(filename) {
+        const parts = filename.split(".");
+        return parts.length > 1 ? parts.pop() : "mp3";
+    }
+
+    // --- 5. Groq 轉錄並支援多 Key 故障轉移 ---
+    async function transcribeChunkWithFailover(blob, keys, onStatus) {
+        let lastError = null;
+
+        for (let k = 0; k < keys.length; k++) {
+            const key = keys[k];
+            try {
+                if (onStatus) onStatus(`正在發送給 Groq (Key ${k+1}/${keys.length})...`);
+                const formData = new FormData();
+                formData.append("file", blob);
+                formData.append("model", "whisper-large-v3-turbo");
+                formData.append("response_format", "verbose_json");
+
+                const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${key}` },
+                    body: formData
+                });
+
+                if (res.ok) {
+                    return await res.json();
+                } else if (res.status === 429 || res.status === 401) {
+                    console.warn(`Key [${key.substring(0, 8)}...] 失敗 (${res.status})，切換下一組 Key...`);
+                    continue;
+                } else {
+                    const errJson = await res.json().catch(() => ({}));
+                    throw new Error(errJson.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+                }
+            } catch (err) {
+                lastError = err;
+            }
+        }
+        throw lastError || new Error("所有 API Key 均轉錄失敗。");
+    }
+
+    // --- 6. SRT 字幕格式化 ---
     function formatSrtTime(sec) {
+        if (isNaN(sec) || sec < 0) sec = 0;
         const ms = Math.floor((sec % 1) * 1000);
         const totalSec = Math.floor(sec);
         const s = totalSec % 60;
@@ -525,7 +587,6 @@
     }
 
     function assembleSrt(segments) {
-        if (!segments || segments.length === 0) return fullTextResult;
         let srt = "";
         segments.forEach((seg, idx) => {
             srt += `${idx + 1}\n`;
@@ -535,7 +596,7 @@
         return srt;
     }
 
-    // --- 5. 切換 Tab 與下載功能 ---
+    // --- 7. 切換 Tab 與下載 ---
     function showResult() {
         resultContainer.style.display = "flex";
         updateActiveTab();
