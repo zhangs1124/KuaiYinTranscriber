@@ -1,0 +1,591 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>快音逐字稿 Web (KuaiYin Transcriber Web)</title>
+    <style>
+        :root {
+            --primary: #0070f3;
+            --primary-hover: #0051bb;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --border: #334155;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 30px 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 860px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .header {
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+            color: #e2e8f0;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px 42px 12px 14px;
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus {
+            border-color: var(--primary);
+        }
+
+        .toggle-btn {
+            position: absolute;
+            right: 12px;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .help-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* 檔案拖曳區 */
+        .dropzone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 36px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: rgba(15, 23, 42, 0.5);
+            transition: all 0.2s;
+        }
+
+        .dropzone:hover, .dropzone.dragover {
+            border-color: var(--primary);
+            background: rgba(0, 112, 243, 0.05);
+        }
+
+        .dropzone-icon {
+            font-size: 2.8rem;
+            margin-bottom: 10px;
+        }
+
+        .dropzone-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .file-info {
+            margin-top: 14px;
+            padding: 12px;
+            background: #0f172a;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+
+        .btn-start {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-size: 1.05rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 18px;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .btn-start:hover {
+            opacity: 0.95;
+        }
+
+        .btn-start:active {
+            transform: scale(0.99);
+        }
+
+        .btn-start:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* 進度條與狀態 */
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-bar-bg {
+            background: #0f172a;
+            border-radius: 8px;
+            height: 10px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-bar-fill {
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .status-msg {
+            font-size: 0.9rem;
+            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 結果顯示區 */
+        .result-container {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .tab-btn.active {
+            background: #334155;
+            color: white;
+        }
+
+        .result-box {
+            width: 100%;
+            height: 380px;
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            color: #f1f5f9;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            resize: vertical;
+            outline: none;
+        }
+
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            flex: 1;
+            min-width: 140px;
+            padding: 10px 16px;
+            background: #334155;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-action:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🎙️ 快音逐字稿 (純靜態 Web 版)</h1>
+        <p>100% 純前端無伺服器架構 • 支援免安裝使用 • 支援部署 GitHub Pages</p>
+    </div>
+
+    <!-- 設定卡片 -->
+    <div class="card">
+        <div class="input-group">
+            <label for="apiKey">🔑 Groq API Key (支援逗號分隔多組)</label>
+            <div class="input-wrapper">
+                <input type="password" id="apiKey" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                <button class="toggle-btn" id="toggleKey" type="button">👁️</button>
+            </div>
+            <div class="help-text">密碼防窺遮罩保護中。轉錄成功後會自動保存在瀏覽器 LocalStorage，下次開啟免重複輸入！</div>
+        </div>
+
+        <!-- 檔案上傳區 -->
+        <div class="dropzone" id="dropzone">
+            <div class="dropzone-icon">📁</div>
+            <div class="dropzone-title">拖曳音訊/影片檔案至此處，或點擊瀏覽選取</div>
+            <div class="help-text">支援 MP3, WAV, M4A, OGG, MP4 等 (為確保瀏覽器不閃退，建議單檔上限 100MB)</div>
+            <input type="file" id="fileInput" accept="audio/*,video/*" style="display: none;">
+        </div>
+
+        <div class="file-info" id="fileInfo">
+            <span id="fileName">未選取檔案</span>
+            <span id="fileSize" style="color: var(--text-muted);">0 MB</span>
+        </div>
+
+        <button class="btn-start" id="startBtn" disabled>🚀 開始進行極速轉錄</button>
+
+        <!-- 進度條 -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+            <div class="status-msg" id="statusMsg">⏳ 正在處理中...</div>
+        </div>
+    </div>
+
+    <!-- 結果卡片 -->
+    <div class="card result-container" id="resultContainer">
+        <div class="tabs">
+            <button class="tab-btn active" id="tabTextBtn">📝 完整逐字稿文字</button>
+            <button class="tab-btn" id="tabSrtBtn">⏱️ 帶時間軸字幕 (SRT)</button>
+        </div>
+
+        <textarea class="result-box" id="resultBox" readonly></textarea>
+
+        <div class="action-bar">
+            <button class="btn-action" id="copyBtn">📋 一鍵複製文字</button>
+            <button class="btn-action" id="downloadTxtBtn">💾 下載逐字稿 (.txt)</button>
+            <button class="btn-action" id="downloadSrtBtn">💾 下載字幕檔 (.srt)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 元素選取 ---
+    const apiKeyInput = document.getElementById("apiKey");
+    const toggleKeyBtn = document.getElementById("toggleKey");
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("fileInput");
+    const fileInfo = document.getElementById("fileInfo");
+    const fileName = document.getElementById("fileName");
+    const fileSize = document.getElementById("fileSize");
+    const startBtn = document.getElementById("startBtn");
+    const progressContainer = document.getElementById("progressContainer");
+    const progressBar = document.getElementById("progressBar");
+    const statusMsg = document.getElementById("statusMsg");
+    const resultContainer = document.getElementById("resultContainer");
+    const resultBox = document.getElementById("resultBox");
+    const tabTextBtn = document.getElementById("tabTextBtn");
+    const tabSrtBtn = document.getElementById("tabSrtBtn");
+    const copyBtn = document.getElementById("copyBtn");
+    const downloadTxtBtn = document.getElementById("downloadTxtBtn");
+    const downloadSrtBtn = document.getElementById("downloadSrtBtn");
+
+    let currentFile = null;
+    let fullTextResult = "";
+    let fullSrtResult = "";
+    let activeTab = "text";
+
+    // --- 1. 初始化 LocalStorage 讀取 API Key ---
+    const savedKey = localStorage.getItem("KUAIYIN_GROQ_KEYS");
+    if (savedKey) {
+        apiKeyInput.value = savedKey;
+    }
+
+    // 眼睛開關
+    toggleKeyBtn.addEventListener("click", () => {
+        apiKeyInput.type = apiKeyInput.type === "password" ? "text" : "password";
+    });
+
+    // --- 2. 檔案選取與拖曳事件 ---
+    dropzone.addEventListener("click", () => fileInput.click());
+
+    dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+        dropzone.classList.remove("dragover");
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("dragover");
+        if (e.dataTransfer.files.length > 0) {
+            handleFileSelect(e.dataTransfer.files[0]);
+        }
+    });
+
+    fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+        }
+    });
+
+    function handleFileSelect(file) {
+        const sizeMb = file.size / (1024 * 1024);
+        if (sizeMb > 100) {
+            alert("⚠️ 檔案大小為 " + sizeMb.toFixed(1) + " MB，超過純瀏覽器安全上限 100 MB！\n\n建議：請先將影片轉為 MP3/M4A 純音訊檔（約僅需 20~30MB），再拖曳進來轉錄，能享有最流暢不閃退的體驗！");
+            return;
+        }
+
+        currentFile = file;
+        fileName.textContent = "📄 " + file.name;
+        fileSize.textContent = sizeMb < 1 ? (file.size / 1024).toFixed(1) + " KB" : sizeMb.toFixed(1) + " MB";
+        fileInfo.style.display = "flex";
+        startBtn.disabled = false;
+    }
+
+    // --- 3. 開始轉錄邏輯 ---
+    startBtn.addEventListener("click", async () => {
+        const rawKeys = apiKeyInput.value.trim();
+        if (!rawKeys) {
+            alert("請先輸入有效的 Groq API Key！");
+            apiKeyInput.focus();
+            return;
+        }
+        if (!currentFile) {
+            alert("請先選取或拖入音訊檔案！");
+            return;
+        }
+
+        // 解析多 Key
+        const keys = rawKeys.split(/[,;\n]/).map(k => k.trim()).filter(k => k.length > 0);
+        let keyIndex = 0;
+
+        startBtn.disabled = true;
+        progressContainer.style.display = "block";
+        resultContainer.style.display = "none";
+        progressBar.style.width = "20%";
+        statusMsg.textContent = "⚡ 正在準備發送至 Groq LPU 雲端推論叢集...";
+
+        try {
+            const formData = new FormData();
+            formData.append("file", currentFile);
+            formData.append("model", "whisper-large-v3-turbo");
+            formData.append("response_format", "verbose_json");
+
+            progressBar.style.width = "50%";
+            statusMsg.textContent = "🚀 正在向 Groq API 進行高精度語音辨識...";
+
+            let response = null;
+            let successKey = "";
+
+            // 輪替 Key 嘗試
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                try {
+                    response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${key}`
+                        },
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        successKey = key;
+                        break;
+                    } else if (response.status === 429 || response.status === 401) {
+                        console.warn(`Key [${key.substring(0, 8)}...] 失敗(${response.status})，嘗試下一組...`);
+                        continue;
+                    } else {
+                        const errJson = await response.json();
+                        throw new Error(errJson.error?.message || response.statusText);
+                    }
+                } catch (netErr) {
+                    if (i === keys.length - 1) throw netErr;
+                }
+            }
+
+            if (!response || !response.ok) {
+                throw new Error("所有提供的 Groq API Key 均觸發頻率限制 (429) 或無效 (401)。");
+            }
+
+            progressBar.style.width = "85%";
+            statusMsg.textContent = "🧩 辨識完成！正在拼裝逐字稿全文與 SRT 字幕...";
+
+            const data = await response.json();
+            fullTextResult = data.text || "";
+            
+            // 拼裝 SRT 字幕
+            fullSrtResult = assembleSrt(data.segments || []);
+
+            // 成功儲存至 LocalStorage
+            localStorage.setItem("KUAIYIN_GROQ_KEYS", rawKeys);
+
+            progressBar.style.width = "100%";
+            statusMsg.textContent = "🎉 恭喜！逐字稿與字幕轉錄完成！";
+
+            // 顯示結果
+            showResult();
+        } catch (err) {
+            statusMsg.textContent = "❌ 轉錄失敗：" + err.message;
+            statusMsg.style.color = "var(--error)";
+            alert("轉錄過程中發生錯誤：\n" + err.message);
+        } finally {
+            startBtn.disabled = false;
+        }
+    });
+
+    // --- 4. SRT 時間戳記轉換演算法 ---
+    function formatSrtTime(sec) {
+        const ms = Math.floor((sec % 1) * 1000);
+        const totalSec = Math.floor(sec);
+        const s = totalSec % 60;
+        const m = Math.floor((totalSec / 60) % 60);
+        const h = Math.floor(totalSec / 3600);
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+    }
+
+    function assembleSrt(segments) {
+        if (!segments || segments.length === 0) return fullTextResult;
+        let srt = "";
+        segments.forEach((seg, idx) => {
+            srt += `${idx + 1}\n`;
+            srt += `${formatSrtTime(seg.start)} --> ${formatSrtTime(seg.end)}\n`;
+            srt += `${seg.text.trim()}\n\n`;
+        });
+        return srt;
+    }
+
+    // --- 5. 切換 Tab 與下載功能 ---
+    function showResult() {
+        resultContainer.style.display = "flex";
+        updateActiveTab();
+    }
+
+    function updateActiveTab() {
+        if (activeTab === "text") {
+            tabTextBtn.classList.add("active");
+            tabSrtBtn.classList.remove("active");
+            resultBox.value = fullTextResult;
+        } else {
+            tabSrtBtn.classList.add("active");
+            tabTextBtn.classList.remove("active");
+            resultBox.value = fullSrtResult;
+        }
+    }
+
+    tabTextBtn.addEventListener("click", () => { activeTab = "text"; updateActiveTab(); });
+    tabSrtBtn.addEventListener("click", () => { activeTab = "srt"; updateActiveTab(); });
+
+    copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(resultBox.value).then(() => {
+            alert("✓ 內容已複製到剪貼簿！");
+        });
+    });
+
+    downloadTxtBtn.addEventListener("click", () => {
+        downloadFile(fullTextResult, `${getSafeBaseName()}_逐字稿.txt`, "text/plain");
+    });
+
+    downloadSrtBtn.addEventListener("click", () => {
+        downloadFile(fullSrtResult, `${getSafeBaseName()}.srt`, "text/plain");
+    });
+
+    function getSafeBaseName() {
+        return currentFile ? currentFile.name.replace(/\.[^/.]+$/, "") : "transcript";
+    }
+
+    function downloadFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType + ";charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>
