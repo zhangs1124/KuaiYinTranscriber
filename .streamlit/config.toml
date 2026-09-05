@@ -1,0 +1,7 @@
+[server]
+maxUploadSize = 4096
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false

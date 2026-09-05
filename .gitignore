@@ -1,6 +1,5 @@
-﻿__pycache__/
+__pycache__/
 *.py[cod]
-.streamlit/
 temp_audio/
 *.mp3
 *.wav
